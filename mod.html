@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hill Cipher - الشرح التفصيلي</title>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2980b9;
+            --sec: #8e44ad;
+            --bg: #f4f7f6;
+        }
+
+        body {
+            font-family: 'Tajawal', sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2 {
+            color: var(--primary);
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .matrix-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        input {
+            width: 60px;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1.1em;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1.1em;
+            margin-top: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .btn-enc {
+            background: var(--primary);
+        }
+
+        .btn-dec {
+            background: var(--sec);
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        /* تنسيق خطوات الحل */
+        .solution-step {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            border-right: 4px solid var(--primary);
+        }
+
+        .math-block {
+            background: #f8f9fa;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            direction: ltr;
+            text-align: left;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .matrix-display {
+            display: inline-block;
+            vertical-align: middle;
+            border-left: 2px solid #333;
+            border-right: 2px solid #333;
+            padding: 0 5px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .note {
+            color: #e74c3c;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .law-title {
+            font-weight: bold;
+            color: var(--sec);
+            margin-bottom: 5px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>Hill Cipher - المحلل الرياضي</h1>
+
+        <div style="text-align: center; background: #eaf2f8; padding: 15px; border-radius: 10px;">
+            <label>مصفوفة المفتاح (Key Matrix $K$)</label>
+            <div style="margin-top: 10px;">
+                <div class="matrix-row">
+                    <input type="number" id="k00" value="3"> <input type="number" id="k01" value="3">
+                </div>
+                <div class="matrix-row">
+                    <input type="number" id="k10" value="2"> <input type="number" id="k11" value="5">
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <label>النص (حروف إنجليزية):</label>
+            <textarea id="textInput" rows="2" placeholder="HELP">HELP</textarea>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-enc" onclick="solve('encrypt')">تشفير وعرض الخطوات</button>
+            <button class="btn-dec" onclick="solve('decrypt')">فك تشفير وعرض الخطوات</button>
+        </div>
+
+        <div id="solutionArea"></div>
+    </div>
+
+    <script>
+        // دوال مساعدة للحساب
+        const mod = (n, m) => ((n % m) + m) % m;
+
+        function modInverse(a, m) {
+            a = mod(a, m);
+            for (let x = 1; x < m; x++) if (mod((a * x), m) === 1) return x;
+            return -1;
+        }
+
+        function getKey() {
+            return [
+                [parseInt(document.getElementById('k00').value), parseInt(document.getElementById('k01').value)],
+                [parseInt(document.getElementById('k10').value), parseInt(document.getElementById('k11').value)]
+            ];
+        }
+
+        // دالة عرض مصفوفة HTML
+        function matHTML(m) {
+            return `<div class="matrix-display">${m[0][0]} &nbsp; ${m[0][1]}<br>${m[1][0]} &nbsp; ${m[1][1]}</div>`;
+        }
+
+        // دالة عرض متجه HTML
+        function vecHTML(v1, v2) {
+            return `<div class="matrix-display">${v1}<br>${v2}</div>`;
+        }
+
+        function solve(mode) {
+            const area = document.getElementById('solutionArea');
+            area.innerHTML = ""; // مسح القديم
+            let html = "";
+
+            const K = getKey();
+            const inputRaw = document.getElementById('textInput').value.toUpperCase().replace(/[^A-Z]/g, '');
+
+            // 1. التحقق من المصفوفة والمحدد
+            const det = (K[0][0] * K[1][1]) - (K[0][1] * K[1][0]);
+            const detMod = mod(det, 26);
+            const detInv = modInverse(detMod, 26);
+
+            html += `<div class="solution-step">
+            <h3>1. تحليل مصفوفة المفتاح</h3>
+            <span class="law-title">القانون: Determinant = (ad - bc) mod 26</span>
+            <div class="math-block">
+                K = ${matHTML(K)} <br><br>
+                Det = (${K[0][0]} × ${K[1][1]}) - (${K[0][1]} × ${K[1][0]}) = ${det}<br>
+                Det (mod 26) = ${detMod}
+            </div>`;
+
+            if (detInv === -1) {
+                html += `<p class="note">خطأ: المحدد (${detMod}) ليس له معكوس ضربي مع 26. لا يمكن استخدام هذه المصفوفة!</p></div>`;
+                area.innerHTML = html;
+                return;
+            }
+
+            html += `<p>المحدد صالح. المعكوس الضربي للمحدد (Det<sup>-1</sup>) هو: <b>${detInv}</b></p></div>`;
+
+            // مصفوفة المعالجة (التشفير = K، فك التشفير = K^-1)
+            let workMatrix = K;
+            let processName = "التشفير";
+
+            // 2. إذا كان المطلوب فك تشفير، نحسب المعكوس
+            if (mode === 'decrypt') {
+                processName = "فك التشفير";
+                html += `<div class="solution-step" style="border-right-color: var(--sec);">
+                <h3>2. إيجاد معكوس المصفوفة (Inverse Matrix)</h3>
+                <p>نحتاج لحساب $K^{-1}$ لفك التشفير.</p>
+                <span class="law-title">الخطوات النظرية:</span>
+                <ul>
+                    <li>حساب مصفوفة المعاملات المرافقة (Adjugate): نبدل عناصر القطر الرئيسي، ونعكس إشارة القطر الثانوي.</li>
+                    <li>ضرب المصفوفة الناتجة في المعكوس الضربي للمحدد (${detInv}).</li>
+                </ul>
+                
+                <span class="law-title">أ. مصفوفة Adjugate:</span>
+                <div class="math-block">
+                    Adj(K) = <div class="matrix-display">${K[1][1]} &nbsp; ${-K[0][1]}<br>${-K[1][0]} &nbsp; ${K[0][0]}</div>
+                    &nbsp; mod 26 &rightarrow; &nbsp;
+                    <div class="matrix-display">${mod(K[1][1], 26)} &nbsp; ${mod(-K[0][1], 26)}<br>${mod(-K[1][0], 26)} &nbsp; ${mod(K[0][0], 26)}</div>
+                </div>
+
+                <span class="law-title">ب. الضرب في المعكوس (${detInv}):</span>
+                <div class="math-block">
+                    K<sup>-1</sup> = ${detInv} × Adj(K) mod 26 <br><br>
+                    = <div class="matrix-display">
+                        ${detInv}×${K[1][1]} &nbsp; ${detInv}×${mod(-K[0][1], 26)}<br>
+                        ${detInv}×${mod(-K[1][0], 26)} &nbsp; ${detInv}×${K[0][0]}
+                      </div>
+                </div>`;
+
+                // حساب المصفوفة المعكوسة فعلياً
+                workMatrix = [
+                    [mod(K[1][1] * detInv, 26), mod(-K[0][1] * detInv, 26)],
+                    [mod(-K[1][0] * detInv, 26), mod(K[0][0] * detInv, 26)]
+                ];
+
+                html += `<div class="math-block" style="background:#e8f8f5; border:1px solid #27ae60;">
+                النتيجة النهائية للمصفوفة المعكوسة:<br>
+                K<sup>-1</sup> = ${matHTML(workMatrix)}
+            </div></div>`;
+            }
+
+            // 3. معالجة النص
+            let textToProcess = inputRaw;
+            if (textToProcess.length % 2 !== 0) textToProcess += "X"; // Padding
+
+            html += `<div class="solution-step">
+            <h3>3. ${processName} (ضرب المصفوفات)</h3>
+            <span class="law-title">القانون: Result = (Matrix × Vector) mod 26</span>
+            <p>النص المراد معالجته: <b>${textToProcess}</b></p>`;
+
+            let finalResult = "";
+
+            for (let i = 0; i < textToProcess.length; i += 2) {
+                const char1 = textToProcess[i];
+                const char2 = textToProcess[i + 1];
+                const p1 = char1.charCodeAt(0) - 65;
+                const p2 = char2.charCodeAt(0) - 65;
+
+                // الحساب
+                const r1 = (workMatrix[0][0] * p1) + (workMatrix[0][1] * p2);
+                const r2 = (workMatrix[1][0] * p1) + (workMatrix[1][1] * p2);
+
+                const c1 = mod(r1, 26);
+                const c2 = mod(r2, 26);
+
+                const resChar1 = String.fromCharCode(c1 + 65);
+                const resChar2 = String.fromCharCode(c2 + 65);
+                finalResult += resChar1 + resChar2;
+
+                html += `<div style="background:#fff; border:1px dashed #ccc; padding:10px; margin:10px 0;">
+                <b>الزوج (${char1}, ${char2}) &rightarrow; (${p1}, ${p2})</b><br>
+                <div class="math-block">
+                    ${matHTML(workMatrix)} × ${vecHTML(p1, p2)} = 
+                    ${vecHTML(`${workMatrix[0][0]}×${p1} + ${workMatrix[0][1]}×${p2}`, `${workMatrix[1][0]}×${p1} + ${workMatrix[1][1]}×${p2}`)}
+                    <br>= ${vecHTML(r1, r2)}
+                    &nbsp; mod 26 &rightarrow; 
+                    ${vecHTML(c1, c2)}
+                    &rightarrow; (${resChar1}, ${resChar2})
+                </div>
+            </div>`;
+            }
+
+            html += `<h3>النتيجة النهائية: <span style="background:yellow; padding:5px;">${finalResult}</span></h3></div>`;
+
+            area.innerHTML = html;
+        }
+    </script>
+
+</body>
+
+</html>
